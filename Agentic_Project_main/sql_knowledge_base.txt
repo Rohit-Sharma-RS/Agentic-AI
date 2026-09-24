@@ -1,0 +1,30 @@
+TABLE: refund_requests
+
+Columns:
+- id (INTEGER): internal row ID (not customer-facing)
+- order_id (TEXT): customer-facing order reference, format ORD-XXXXX
+- customer_name (TEXT): customer's display name
+- phone_number (TEXT): 🔒 RESTRICTED -- do not select, do not mention, never appears in results
+- account_number (TEXT): 🔒 RESTRICTED -- do not select, do not mention, never appears in results
+- product_category (TEXT): one of electronics, subscription, shipping, warranty, accessories, software
+- refund_amount (REAL): dollar amount requested, e.g. 42.50
+- reason (TEXT): one of "damaged item", "changed my mind", "late shipment", "wrong item sent", "duplicate charge", "not as described"
+- status (TEXT): one of "approved", "rejected", "pending"
+- resolved_by (TEXT): "ai" or "human" -- who made the resolution decision
+- risk_level (TEXT): "low" (amount <= $100), "medium" ($100-$500), "high" (> $500) -- mirrors the refund_authorization_limits policy
+- request_date (TEXT): ISO date string, e.g. "2026-03-14"
+- refund_issued (INTEGER 0/1): whether the refund has actually been paid out (idempotency lock, not restricted)
+- refund_issued_at (TEXT): timestamp the refund was issued, NULL if not yet issued
+
+Business rules for writing queries:
+- This is SQLite. Use SQLite syntax (e.g. strftime, BETWEEN).
+- Only ever write a single SELECT statement -- never INSERT/UPDATE/DELETE/DROP/ALTER.
+- NEVER select or reference phone_number or account_number, under any circumstances,
+  even if the question asks for them directly -- these columns are restricted and any
+  query touching them will be rejected before it runs. If asked, explain that account/
+  phone data isn't available through this interface.
+- NEVER use "SELECT *" -- always list specific, non-restricted columns.
+- "Range" questions (e.g. "refunds between $100 and $500", "requests in March") should use BETWEEN on refund_amount or request_date.
+- "How many" / "count" questions should use COUNT(*).
+- "Average"/"total" questions should use AVG()/SUM() on refund_amount.
+- If the question doesn't specify a time period, do not add a date filter -- query across all available data.

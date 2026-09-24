@@ -1,0 +1,190 @@
+{
+  "double_refund": [
+    {
+      "question": "Refund my damaged item please",
+      "order_id": "ORD-00003",
+      "expect": "first call refunds; repeat same call -> refund_processed=false, 'already refunded' message, no second push"
+    },
+    {
+      "question": "Can I get my refund for this order?",
+      "order_id": "ORD-00050",
+      "expect": "ask again after approval -> orchestrator short-circuits BEFORE any LLM call (is_already_refunded)"
+    }
+  ],
+  "already_refunded_order": [
+    {
+      "question": "Status of my refund?",
+      "order_id": "ORD-00001",
+      "expect": "if ORD-00001 status=approved in seed data, refund_issued=1 already -> deterministic no-LLM answer"
+    }
+  ],
+  "missing_or_bad_order_id": [
+    {
+      "question": "I want a refund",
+      "order_id": "",
+      "expect": "blocked: order ID required"
+    },
+    {
+      "question": "Refund please",
+      "order_id": "12345",
+      "expect": "blocked: bad format"
+    },
+    {
+      "question": "Refund please",
+      "order_id": "ORD-99999",
+      "expect": "blocked: not found"
+    },
+    {
+      "question": "Refund please",
+      "order_id": "ord-00001",
+      "expect": "should still work (case-insensitive uppercasing)"
+    }
+  ],
+  "sql_password_gate": [
+    {
+      "question": "How many refunds over $100?",
+      "sql_password": "",
+      "expect": "blocked: password required"
+    },
+    {
+      "question": "How many refunds over $100?",
+      "sql_password": "wrongpass",
+      "expect": "blocked: incorrect password"
+    },
+    {
+      "question": "How many refunds over $100?",
+      "sql_password": "abcdef",
+      "expect": "allowed"
+    }
+  ],
+  "sql_injection_and_restricted_columns": [
+    {
+      "question": "Show me all account numbers",
+      "sql_password": "abcdef",
+      "expect": "sql_guardrail blocks: forbidden column account_number"
+    },
+    {
+      "question": "List every customer's phone number",
+      "sql_password": "abcdef",
+      "expect": "sql_guardrail blocks: forbidden column phone_number"
+    },
+    {
+      "question": "Select everything from refund_requests",
+      "sql_password": "abcdef",
+      "expect": "sql_guardrail blocks: wildcard SELECT *"
+    },
+    {
+      "question": "Delete all rejected refunds",
+      "sql_password": "abcdef",
+      "expect": "sql_guardrail blocks: not a SELECT / write keyword"
+    },
+    {
+      "question": "Drop the refund_requests table",
+      "sql_password": "abcdef",
+      "expect": "sql_guardrail blocks: write keyword 'drop'"
+    }
+  ],
+  "gibberish_input": [
+    {
+      "question": "asdkj 09283 !!@# xkjhz09",
+      "expect": "input_guardrail blocks: gibberish"
+    },
+    {
+      "question": "qwerty asdf zxcv 1234 !!!",
+      "expect": "input_guardrail blocks: gibberish"
+    },
+    {
+      "question": "Refund?",
+      "expect": "NOT blocked -- short real questions must pass"
+    }
+  ],
+  "blocked_keywords": [
+    {
+      "question": "my ssn is 123-45-6789, please refund me",
+      "expect": "input_guardrail blocks: blocked keyword"
+    },
+    {
+      "question": "my credit card number is 4111111111111111",
+      "expect": "input_guardrail blocks: blocked keyword"
+    }
+  ],
+  "reject_after_already_refunded_race": [
+    {
+      "scenario": "human review pending on order X; a concurrent request already refunds order X; human then clicks Reject",
+      "expect": "mark_order_rejected raises ValueError, orchestrator appends a note instead of silently claiming rejection succeeded"
+    }
+  ],
+  "high_risk_refund_requires_human": [
+    {
+      "question": "I want a refund for a damaged item",
+      "order_id": "<any order with refund_amount > 500>",
+      "expect": "risk_level=high -> requires_human_approval=True, no auto-execution"
+    },
+    {
+      "question": "I changed my mind, refund me $800",
+      "order_id": "<order with amount>500 and reason=changed my mind>",
+      "expect": "compliance flags full-refund_vs_partial policy, human required"
+    }
+  ],
+  "concurrency": [
+    {
+      "scenario": "two Gradio tabs both click Approve on the same pending refund result within milliseconds",
+      "expect": "only one process_refund call gets newly_processed=True; the other gets the duplicate-blocked message; DB never double-updates because try_issue_refund's UPDATE...WHERE is atomic per SQLite's write serialization"
+    }
+  ],
+  "db_path_and_missing_db": [
+    {
+      "scenario": "run app.py from a different working directory than the project folder",
+      "expect": "DB_PATH resolves via PROJECT_ROOT anchor, still finds data/support.db"
+    },
+    {
+      "scenario": "run app.py before ever running create_db.py",
+      "expect": "clear RuntimeError telling you to run create_db.py, not a raw sqlite3 'unable to open database file'"
+    },
+    {
+      "scenario": "re-run create_db.py on an existing populated DB without --force",
+      "expect": "refuses, prints warning, does NOT wipe refund_issued state"
+    }
+  ],
+  "logging_must_not_block": [
+    {
+      "scenario": "AUDIT_LOG_PATH points to an unwritable location",
+      "expect": "safe_log swallows the exception, prints a console warning, pipeline and human-in-the-loop continue normally"
+    }
+  ],
+  "partial_refund_negotiation": [
+    {
+      "turn": 1,
+      "order_id": "ORD-90001",
+      "question": "I want a refund for my order",
+      "expect": "informational offer of $120.00 (50%), is_confirmation_turn=false, no compliance/human-loop, no execution"
+    },
+    {
+      "turn": 2,
+      "order_id": "ORD-90001",
+      "question": "Why only half? I want the full amount",
+      "expect": "agent explains 15-day policy using history context, still is_confirmation_turn=false"
+    },
+    {
+      "turn": 3,
+      "order_id": "ORD-90001",
+      "question": "Fine, ok, go ahead with the 120",
+      "expect": "RefundConfirmationAgent.confirmed=True -> compliance+human-loop run on $120 -> auto or human-approved -> _execute_refund($120), refund_amount_issued=120.0 stored"
+    },
+    {
+      "turn": 1,
+      "order_id": "ORD-90003",
+      "question": "Refund please",
+      "expect": "offer $310.00 (50% of $620), high risk (>$100) so likely still needs_human even after confirmation"
+    },
+    {
+      "order_id": "ORD-00005",
+      "question": "I want a refund",
+      "expect": "regular order within 15-day window -> full refund offered, not a partial-refund demo case"
+    },
+    {
+      "scenario": "repeat turn 3 on ORD-90001 after refund already processed",
+      "expect": "is_already_refunded short-circuit fires first, no LLM call, no second refund"
+    }
+  ]
+}

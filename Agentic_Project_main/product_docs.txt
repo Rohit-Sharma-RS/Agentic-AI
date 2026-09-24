@@ -1,0 +1,20 @@
+### DOC: refund_policy_basics
+Customers can request a refund within 30 days of purchase if the product is unused and in original packaging. Digital products (software licenses, downloadable content) are refundable only if they were never activated.
+
+### DOC: shipping_delays
+Standard shipping takes 5-7 business days. If an order is delayed more than 10 business days past the estimated delivery date, the customer is eligible for a shipping-fee refund, but NOT a full product refund unless the package is lost.
+
+### DOC: damaged_item_process
+If an item arrives damaged, the customer should be offered a free replacement or a full refund, their choice. Photo evidence of the damage should be requested but is not mandatory to process the resolution.
+
+### DOC: subscription_cancellation
+Subscriptions can be cancelled anytime from the account settings page. Cancelling mid-cycle stops future billing but does NOT refund the current billing period, unless the customer cancels within 48 hours of a renewal charge ("cooling-off window").
+
+### DOC: account_access_issues
+For login or account-lockout issues, support can trigger a password reset email. Support agents are never permitted to reset a password manually or read out a password over chat/phone.
+
+### DOC: warranty_coverage
+Hardware products carry a 1-year manufacturer warranty covering defects, not accidental damage or water damage. Extended warranty (purchased separately) covers accidental damage for up to 2 years.
+
+### DOC: late_refund_partial_policy
+If a customer requests a refund for a reason other than "damaged item" (e.g. "changed my mind" or "not as described") more than 15 days after their purchase date, they are only eligible for a 50% partial refund instead of a full refund. Refunds requested within 15 days of purchase remain fully refundable. Damaged items are always fully refundable regardless of how much time has passed.
