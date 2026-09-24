@@ -68,20 +68,39 @@ def _require_api_key() -> None:
 
 
 def build_vectorstore(doc_path: str) -> FAISS:
-    """Loads one plain-text file split into '### DOC: id' blocks and embeds
-    each block independently. Each agent gets its own FAISS index."""
+    """Loads one plain-text file split into '### DOC: id' or '### POLICY: id' blocks
+    and embeds each block independently. Each agent gets its own FAISS index."""
+    import re
     _require_api_key()
     with open(doc_path, encoding="utf-8") as f:
         raw = f.read()
 
     chunks, ids = [], []
-    for block in raw.split("### DOC: ")[1:]:
-        doc_id, _, body = block.partition("\n")
-        chunks.append(body.strip())
-        ids.append(doc_id.strip())
+    blocks = re.split(r"###\s*(?:DOC|POLICY|[A-Z_]+):\s*", raw)
+    if len(blocks) > 1:
+        for block in blocks[1:]:
+            if not block.strip():
+                continue
+            doc_id, _, body = block.partition("\n")
+            if body.strip():
+                chunks.append(body.strip())
+                ids.append(doc_id.strip())
+            else:
+                chunks.append(block.strip())
+                ids.append("doc")
+
+    if not chunks and raw.strip():
+        chunks = [raw.strip()]
+        ids = [Path(doc_path).stem]
+
+    if not chunks:
+        raise ValueError(f"No document content found in {doc_path}")
 
     splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     docs = splitter.create_documents(chunks, metadatas=[{"doc_id": i} for i in ids])
+
+    if not docs:
+        raise ValueError(f"Failed to create documents from {doc_path}")
 
     embeddings = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL)
     return FAISS.from_documents(docs, embeddings)
