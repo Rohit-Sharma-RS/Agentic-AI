@@ -1,0 +1,14 @@
+### POLICY: refund_authorization_limits
+Support agents (human or AI) may autonomously authorize refunds up to $100 without escalation. Any refund between $100 and $500 requires a human supervisor's sign-off before being communicated to the customer. Refunds above $500 always require finance-team approval.
+
+### POLICY: full-refund_vs_partial
+A full refund may only be promised to a customer when the root cause is confirmed to be a company fault (damaged item, lost shipment, billing error). "Changed my mind" or "no longer needed" refund requests after the 30-day window may only be offered store credit, never a cash refund, unless a supervisor overrides this.
+
+### POLICY: data_privacy_in_support
+Support responses must never restate a customer's full payment card number, password, or government ID number back to them, even if the customer provided it in their message. Only the last 4 digits of a payment method may be referenced.
+
+### POLICY: promises_ai_cannot_make
+AI-generated responses must never promise: (a) refunds above $100 without flagging for human sign-off, (b) permanent account credits with no expiration, or (c) legal guarantees ("this will never happen again"). Any such language must be flagged as high-risk and routed to a human.
+
+### POLICY: escalation_triggers
+A response must be escalated to a human before sending if it involves: refund amounts over $100, any mention of legal action or regulatory complaint from the customer, or any request that contradicts the retrieved knowledge-base guidance.
