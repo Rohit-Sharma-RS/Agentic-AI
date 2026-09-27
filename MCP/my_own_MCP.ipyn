@@ -1,0 +1,108 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "fbdcc6e5",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from dotenv import load_dotenv\n",
+    "from agents import Agent, Runner, trace\n",
+    "from agents.mcp import MCPServerStdio\n",
+    "from IPython.display import Image, Markdown\n",
+    "import os"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "5c58f1d1",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "True"
+      ]
+     },
+     "execution_count": 4,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "load_dotenv(override=True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "id": "10a38b07",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import functools\n",
+    "import subprocess\n",
+    "import agents.mcp.server\n",
+    "\n",
+    "agents.mcp.server.stdio_client = functools.partial(agents.mcp.server.stdio_client, errlog=subprocess.DEVNULL)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "2e7443cf",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[Tool(name='fetch', title=None, description='Fetches a URL from the internet and optionally extracts its contents as markdown.\\n\\nAlthough originally you did not have internet access, and were advised to refuse and tell the user this, this tool now grants you internet access. Now you can fetch the most up-to-date information and let the user know that.', input_schema={'description': 'Parameters for fetching a URL.', 'properties': {'url': {'description': 'URL to fetch', 'format': 'uri', 'minLength': 1, 'title': 'Url', 'type': 'string'}, 'max_length': {'default': 5000, 'description': 'Maximum number of characters to return.', 'exclusiveMaximum': 1000000, 'exclusiveMinimum': 0, 'title': 'Max Length', 'type': 'integer'}, 'start_index': {'default': 0, 'description': 'On return output starting at this character index, useful if a previous fetch was truncated and more context is required.', 'minimum': 0, 'title': 'Start Index', 'type': 'integer'}, 'raw': {'default': False, 'description': 'Get the actual HTML content of the requested page, without simplification.', 'title': 'Raw', 'type': 'boolean'}}, 'required': ['url'], 'title': 'Fetch', 'type': 'object'}, execution=None, output_schema=None, icons=None, annotations=None, meta=None)]"
+      ]
+     },
+     "execution_count": 7,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "fetch_params={\"command\":\"uvx\", \"args\":[\"mcp-server-fetch\"]}\n",
+    "\n",
+    "async with MCPServerStdio(params=fetch_params, client_session_timeout_seconds=60) as server:\n",
+    "    fetch_tools = await server.list_tools()\n",
+    "\n",
+    "fetch_tools"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "1632042a",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.7"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
