@@ -1,0 +1,44 @@
+### DOC: partner_profile_policy
+Every trading partner must be configured in the inbound partner profile (WE20-equivalent) before any IDoc from them can be processed. An unconfigured partner ID means no inbound process code exists, so the IDoc cannot be routed to a function module at all -- this is a configuration issue, not a business rejection, and must be fixed by an integration admin adding the partner profile, not by editing the order. Human fix: use the "Add partner profile" action in the UI.
+
+### DOC: material_blocking_policy
+A material marked "blocked" in the material master cannot be sold under any circumstances until the block is lifted by a materials-management admin. Common reasons: quality hold, discontinued product, regulatory restriction. Orders containing a blocked material must be rejected (or that line removed) until unblocked -- do not substitute a different material without customer confirmation. Human fix: use the "Unblock material" action after resolving the hold reason.
+
+### DOC: availability_policy
+If the requested quantity exceeds available stock but some stock is available, the system automatically performs a partial fill: it confirms the available quantity immediately and places the remainder on backorder (E1EDP20 schedule line). An EDI 855 with acknowledgment code AD (accepted with detail) and BP backorder lines is sent. If zero stock is available, the order cannot be confirmed at all and a human must replenish stock first. Human fix: use the "Replenish stock" action to add available inventory, then reprocess. Never silently ship less than ordered without the customer receiving an EDI 855 acknowledgment.
+
+### DOC: zero_stock_policy
+When available_qty is exactly 0 for a material, no partial fill is possible. The IDoc is set to status 51 and the human-in-the-loop must either: (a) replenish stock via the "Replenish stock" fix action and reprocess, or (b) notify the customer that the product is out of stock and no delivery can be made. This is distinct from low-stock (partial fill possible) and must not be auto-resolved without human confirmation.
+
+### DOC: credit_check_policy
+Every sales order is checked against the customer's available credit (credit_limit minus credit_used). If order value exceeds available credit, the order is blocked pending either a credit limit increase (finance approval) or the customer prepaying/reducing the order value. This is a hard financial control and should never be silently bypassed. Human fix: use "Raise credit limit" after finance approval, then reprocess.
+
+### DOC: unknown_customer_policy
+If the ship-to or sold-to customer ID in the EDI 850 does not exist in the customer master, the order cannot proceed. The OTC (Order-to-Cash) admin must create the customer master record with an appropriate credit limit before any order from that customer can be processed. Human fix: use the "Add customer" action with the customer ID and initial credit limit.
+
+### DOC: unknown_material_policy
+If a customer material code in a PO1 line item has no mapping to a SAP material number, the IDoc cannot proceed for that line. An EDI admin must create the cross-reference mapping (customer material → SAP material number, unit price, initial stock). Human fix: use the "Add material mapping" action with customer material code, SAP material, agreed price, and initial stock.
+
+### DOC: price_mismatch_policy
+The agreed unit price for each material is stored in the material master. If the submitted PO price deviates by more than the configured tolerance (default 5%), the order line is rejected to prevent unauthorized pricing. Human fix: either update the agreed price in the material master if a new price agreement has been signed, or ask the customer to resubmit with the correct price. Never accept a price that exceeds tolerance without explicit approval.
+
+### DOC: delivery_date_policy
+A delivery date (DTM*002 segment) that is in the past is rejected automatically since it is logistically impossible to fulfill. The customer must resubmit the EDI 850 with a future delivery date, or the date segment must be removed. This check runs before business-rule checks so it fails fast before expensive downstream processing.
+
+### DOC: invalid_qty_price_policy
+Line items with zero or negative quantity, or with a negative unit price, indicate a malformed PO and are rejected immediately. These are data-quality issues that must be corrected by the trading partner before resubmission. The system never auto-correct quantities or prices.
+
+### DOC: reprocessing_policy
+A failed IDoc (status 51) can be reprocessed (BD87-equivalent) once the underlying issue is fixed -- e.g., partner profile added, material unblocked, credit limit raised, stock replenished, customer added, material mapped. Reprocessing re-runs the full inbound check from scratch; it never partially applies a fix. Always choose the correct fix type in the Human Remediation panel before clicking "Apply fix & Reprocess".
+
+### DOC: partial_fill_reprocessing_policy
+A partial-fill order (status "partial") has already been confirmed for the available quantity and an EDI 855 has been sent to the customer. If the human replenishes stock for the backordered quantity, the original PO must NOT be reprocessed (it would create a duplicate). Instead, the backorder should be fulfilled separately when stock is available. The system prevents duplicate order creation via a UNIQUE constraint on buyer_po_number.
+
+### DOC: idempotency_policy
+The system uses a UNIQUE constraint on buyer_po_number in the sales_orders table as the atomic guard against duplicate processing. If the same EDI 850 is received twice (e.g., due to a network retry), the second attempt is silently suppressed and the existing order details are returned. This means it is always safe to resubmit an EDI 850 after fixing an issue -- the system will not double-create the order. The idempotency check happens before any LLM call to minimize cost.
+
+### DOC: edi_parse_error_policy
+If the raw EDI 850 cannot be parsed (missing required segments, malformed date, wrong field positions), the system returns a PARSE_ERROR status without calling the LLM. The trading partner must correct and resubmit the EDI file. Common causes: wrong segment delimiter, missing BEG or ISA segment, PO1 with fewer than 8 elements, date in wrong format (must be YYYYMMDD).
+
+### DOC: db_failure_policy
+If the SQLite database file is missing or corrupt, the system raises a RuntimeError with instructions to run `python create_db.py`. This is a infrastructure issue, not a business rejection. All database operations use try/finally to ensure connections are closed. The idoc_log write is wrapped in an additional try/except so a logging failure never cascades into a pipeline failure.

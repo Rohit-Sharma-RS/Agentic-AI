@@ -1,0 +1,32 @@
+{
+  "happy_path": [
+    {"scenario": "sample_edi_850() default", "expect": "50->64->53->01->30->03, sales order created, EDI 855 generated"}
+  ],
+  "duplicate_po": [
+    {"scenario": "submit the same PO twice", "expect": "second submission short-circuits before any LLM call, final_status='duplicate', no second sales order (verified: UNIQUE constraint)"}
+  ],
+  "malformed_edi": [
+    {"scenario": "raw text with only 'GARBAGE~'", "expect": "EDIParseError, final_status='parse_error', no LLM call spent (verified)"},
+    {"scenario": "PO1 segment missing customer_material element", "expect": "EDIParseError on segment parse"}
+  ],
+  "unconfigured_partner": [
+    {"scenario": "partner_id='CUST_9999'", "expect": "status 51, 'No partner profile configured (WE20)', diagnosis agent explains, requires_human=True (verified lookup returns None)"}
+  ],
+  "blocked_material": [
+    {"scenario": "material='WIDGET-BLOCKED'", "expect": "status 51, material_blocking_policy cited by diagnosis agent (verified check fails)"}
+  ],
+  "low_stock": [
+    {"scenario": "material='WIDGET-LOWSTOCK', qty=50 (only 5 available)", "expect": "status 51, availability_policy cited"}
+  ],
+  "credit_exceeded": [
+    {"scenario": "qty=500, unit_price=120 -> $60,000 vs $40,000 available credit", "expect": "status 51, credit_check_policy cited (verified: correct failure + total)"}
+  ],
+  "reprocess_after_fix": [
+    {"scenario": "unconfigured partner -> human adds WE20 profile -> reprocess same raw EDI", "expect": "second run passes partner check, proceeds normally"},
+    {"scenario": "blocked material -> human unblocks it -> reprocess", "expect": "passes material check on reprocess"},
+    {"scenario": "credit exceeded -> human raises credit limit -> reprocess", "expect": "passes credit check on reprocess"}
+  ],
+  "race_condition": [
+    {"scenario": "two identical PO submissions processed concurrently, both pass checks simultaneously", "expect": "try_create_sales_order's UNIQUE constraint + IntegrityError handling ensures only one INSERT succeeds; the other returns newly_created=False and reuses the existing order"}
+  ]
+}
