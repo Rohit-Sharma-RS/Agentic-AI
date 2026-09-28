@@ -1,0 +1,394 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Week 6, Day 2\n",
+    "\n",
+    "Before proceeding with our own MCP Server, let's just look at 2 popular marketplaces for what's out there:\n",
+    "\n",
+    "https://glama.ai/mcp  \n",
+    "https://smithery.ai/servers \n",
+    "\n",
+    "We're about to create and use our own MCP Server!\n",
+    "\n",
+    "It's pretty simple, but it's not super-simple. The excitement around MCP is about how easy it is to share and use other MCP Servers - making our own does involve a bit of work.\n",
+    "\n",
+    "Let's review some python code made mostly by a hard-working Engineering Team:\n",
+    "\n",
+    "backend/accounts.py"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "False"
+      ]
+     },
+     "execution_count": 17,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "import os\n",
+    "from openai import OpenAI, AsyncOpenAI\n",
+    "import requests\n",
+    "from dotenv import load_dotenv\n",
+    "from openai.types.responses import ResponseTextDeltaEvent\n",
+    "import asyncio\n",
+    "from typing import Dict\n",
+    "from IPython.display import display, Markdown\n",
+    "from pydantic import BaseModel, Field\n",
+    "from agents import Agent, Runner, trace, function_tool, SQLiteSession, OpenAIChatCompletionsModel\n",
+    "from agents import GuardrailFunctionOutput, output_guardrail\n",
+    "\n",
+    "from dotenv import load_dotenv\n",
+    "from openai import OpenAI, AsyncOpenAI\n",
+    "from agents import Agent, Runner, trace\n",
+    "from agents.mcp import MCPServerStdio\n",
+    "from IPython.display import display, Markdown\n",
+    "\n",
+    "load_dotenv(override=True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "GEMINI_BASE_URL = \"https://generativelanguage.googleapis.com/v1beta/openai/\"\n",
+    "google_api_key = os.getenv(\"Gemini_API\")\n",
+    "\n",
+    "gemini_client = AsyncOpenAI(base_url = GEMINI_BASE_URL, api_key=google_api_key)\n",
+    "gemini_model = OpenAIChatCompletionsModel(model=\"gemini-3.5-flash-lite\", openai_client=gemini_client)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# On Windows, a stdio MCP server started from a Jupyter kernel writes to a stderr stream with no\n",
+    "# real file descriptor and crashes with io.UnsupportedOperation: fileno. We send the server's\n",
+    "# stderr to the null device so it always has somewhere real to write, which lets every cell below\n",
+    "# use MCPServerStdio exactly as the OpenAI Agents SDK documents it. Mac and Linux are unaffected.\n",
+    "import functools\n",
+    "import subprocess\n",
+    "import agents.mcp.server\n",
+    "\n",
+    "agents.mcp.server.stdio_client = functools.partial(agents.mcp.server.stdio_client, errlog=subprocess.DEVNULL)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import sys\n",
+    "\n",
+    "sys.path.append(r\"c:\\training projects\")\n",
+    "\n",
+    "from backend.accounts import Account"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "Account(name='rohit', balance=10000.0, strategy='', holdings={}, transactions=[], portfolio_value_time_series=[])"
+      ]
+     },
+     "execution_count": 4,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "account = Account.get(\"Rohit\")\n",
+    "account.reset()\n",
+    "account"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'Completed. Latest details:\\n{\"name\": \"rohit\", \"balance\": 9070.48468, \"strategy\": \"\", \"holdings\": {\"AMZN\": 3}, \"transactions\": [{\"symbol\": \"AMZN\", \"quantity\": 3, \"price\": 309.83844000000005, \"timestamp\": \"2026-09-11 13:01:33\", \"rationale\": \"Because this bookstore website looks promising\"}], \"portfolio_value_time_series\": [[\"2026-09-11 13:01:33\", 9998.14468]], \"total_portfolio_value\": 9998.14468, \"total_profit_loss\": -1.8553200000005745}'"
+      ]
+     },
+     "execution_count": 5,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "account.buy_shares(\"AMZN\", 3, \"Because this bookstore website looks promising\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'{\"name\": \"rohit\", \"balance\": 9070.48468, \"strategy\": \"\", \"holdings\": {\"AMZN\": 3}, \"transactions\": [{\"symbol\": \"AMZN\", \"quantity\": 3, \"price\": 309.83844000000005, \"timestamp\": \"2026-09-11 13:01:33\", \"rationale\": \"Because this bookstore website looks promising\"}], \"portfolio_value_time_series\": [[\"2026-09-11 13:01:33\", 9998.14468], [\"2026-09-11 13:01:33\", 9998.14468], [\"2026-09-11 13:07:43\", 9997.15468]], \"total_portfolio_value\": 9997.15468, \"total_profit_loss\": -2.8453200000003562}'"
+      ]
+     },
+     "execution_count": 23,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "account.report()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[{'symbol': 'AMZN',\n",
+       "  'quantity': 3,\n",
+       "  'price': 309.83844000000005,\n",
+       "  'timestamp': '2026-09-11 13:01:33',\n",
+       "  'rationale': 'Because this bookstore website looks promising'}]"
+      ]
+     },
+     "execution_count": 7,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "account.list_transactions()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Now we write an MCP server and use it directly!"
+   ]
+  },
+  
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "c:\\training projects\n",
+      "[Tool(name='get_balance', title=None, description='Get the cash balance of the given account name.\\n\\n    Args:\\n        name: The name of the account holder\\n    ', inputSchema={'properties': {'name': {'title': 'Name', 'type': 'string'}}, 'required': ['name'], 'title': 'get_balanceArguments', 'type': 'object'}, outputSchema={'properties': {'result': {'title': 'Result', 'type': 'number'}}, 'required': ['result'], 'title': 'get_balanceOutput', 'type': 'object'}, icons=None, annotations=None, meta=None, execution=None), Tool(name='get_holdings', title=None, description='Get the holdings of the given account name.\\n\\n    Args:\\n        name: The name of the account holder\\n    ', inputSchema={'properties': {'name': {'title': 'Name', 'type': 'string'}}, 'required': ['name'], 'title': 'get_holdingsArguments', 'type': 'object'}, outputSchema={'additionalProperties': {'type': 'integer'}, 'title': 'get_holdingsDictOutput', 'type': 'object'}, icons=None, annotations=None, meta=None, execution=None), Tool(name='buy_shares', title=None, description=\"Buy shares of a stock.\\n\\n    Args:\\n        name: The name of the account holder\\n        symbol: The symbol of the stock\\n        quantity: The quantity of shares to buy\\n        rationale: The rationale for the purchase and fit with the account's strategy\\n    \", inputSchema={'properties': {'name': {'title': 'Name', 'type': 'string'}, 'symbol': {'title': 'Symbol', 'type': 'string'}, 'quantity': {'title': 'Quantity', 'type': 'integer'}, 'rationale': {'title': 'Rationale', 'type': 'string'}}, 'required': ['name', 'symbol', 'quantity', 'rationale'], 'title': 'buy_sharesArguments', 'type': 'object'}, outputSchema={'properties': {'result': {'title': 'Result', 'type': 'number'}}, 'required': ['result'], 'title': 'buy_sharesOutput', 'type': 'object'}, icons=None, annotations=None, meta=None, execution=None), Tool(name='sell_shares', title=None, description=\"Sell shares of a stock.\\n\\n    Args:\\n        name: The name of the account holder\\n        symbol: The symbol of the stock\\n        quantity: The quantity of shares to sell\\n        rationale: The rationale for the sale and fit with the account's strategy\\n    \", inputSchema={'properties': {'name': {'title': 'Name', 'type': 'string'}, 'symbol': {'title': 'Symbol', 'type': 'string'}, 'quantity': {'title': 'Quantity', 'type': 'integer'}, 'rationale': {'title': 'Rationale', 'type': 'string'}}, 'required': ['name', 'symbol', 'quantity', 'rationale'], 'title': 'sell_sharesArguments', 'type': 'object'}, outputSchema={'properties': {'result': {'title': 'Result', 'type': 'number'}}, 'required': ['result'], 'title': 'sell_sharesOutput', 'type': 'object'}, icons=None, annotations=None, meta=None, execution=None), Tool(name='change_strategy', title=None, description='At your discretion, if you choose to, call this to change your investment strategy for the future.\\n\\n    Args:\\n        name: The name of the account holder\\n        strategy: The new strategy for the account\\n    ', inputSchema={'properties': {'name': {'title': 'Name', 'type': 'string'}, 'strategy': {'title': 'Strategy', 'type': 'string'}}, 'required': ['name', 'strategy'], 'title': 'change_strategyArguments', 'type': 'object'}, outputSchema={'properties': {'result': {'title': 'Result', 'type': 'string'}}, 'required': ['result'], 'title': 'change_strategyOutput', 'type': 'object'}, icons=None, annotations=None, meta=None, execution=None)]\n"
+     ]
+    }
+   ],
+   "source": [
+    "import os\n",
+    "os.chdir(r\"c:\\training projects\")\n",
+    "import os\n",
+    "print(os.getcwd())\n",
+    "\n",
+    "params = {\n",
+    "    \"command\": \"uv\",\n",
+    "    \"args\": [\"run\", \"-m\", \"backend.accounts_server\"]\n",
+    "}\n",
+    "\n",
+    "async with MCPServerStdio(\n",
+    "    params=params,\n",
+    "    client_session_timeout_seconds=60,\n",
+    ") as server:\n",
+    "    mcp_tools = await server.list_tools()\n",
+    "\n",
+    "print(mcp_tools)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "c:\\training projects\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "[Tool(name='get_balance', title=None, description='Get the cash balance of the given account name.\\n\\n    Args:\\n        name: The name of the account holder\\n    ', inputSchema={'properties': {'name': {'title': 'Name', 'type': 'string'}}, 'required': ['name'], 'title': 'get_balanceArguments', 'type': 'object'}, outputSchema={'properties': {'result': {'title': 'Result', 'type': 'number'}}, 'required': ['result'], 'title': 'get_balanceOutput', 'type': 'object'}, icons=None, annotations=None, meta=None, execution=None),\n",
+       " Tool(name='get_holdings', title=None, description='Get the holdings of the given account name.\\n\\n    Args:\\n        name: The name of the account holder\\n    ', inputSchema={'properties': {'name': {'title': 'Name', 'type': 'string'}}, 'required': ['name'], 'title': 'get_holdingsArguments', 'type': 'object'}, outputSchema={'additionalProperties': {'type': 'integer'}, 'title': 'get_holdingsDictOutput', 'type': 'object'}, icons=None, annotations=None, meta=None, execution=None),\n",
+       " Tool(name='buy_shares', title=None, description=\"Buy shares of a stock.\\n\\n    Args:\\n        name: The name of the account holder\\n        symbol: The symbol of the stock\\n        quantity: The quantity of shares to buy\\n        rationale: The rationale for the purchase and fit with the account's strategy\\n    \", inputSchema={'properties': {'name': {'title': 'Name', 'type': 'string'}, 'symbol': {'title': 'Symbol', 'type': 'string'}, 'quantity': {'title': 'Quantity', 'type': 'integer'}, 'rationale': {'title': 'Rationale', 'type': 'string'}}, 'required': ['name', 'symbol', 'quantity', 'rationale'], 'title': 'buy_sharesArguments', 'type': 'object'}, outputSchema={'properties': {'result': {'title': 'Result', 'type': 'number'}}, 'required': ['result'], 'title': 'buy_sharesOutput', 'type': 'object'}, icons=None, annotations=None, meta=None, execution=None),\n",
+       " Tool(name='sell_shares', title=None, description=\"Sell shares of a stock.\\n\\n    Args:\\n        name: The name of the account holder\\n        symbol: The symbol of the stock\\n        quantity: The quantity of shares to sell\\n        rationale: The rationale for the sale and fit with the account's strategy\\n    \", inputSchema={'properties': {'name': {'title': 'Name', 'type': 'string'}, 'symbol': {'title': 'Symbol', 'type': 'string'}, 'quantity': {'title': 'Quantity', 'type': 'integer'}, 'rationale': {'title': 'Rationale', 'type': 'string'}}, 'required': ['name', 'symbol', 'quantity', 'rationale'], 'title': 'sell_sharesArguments', 'type': 'object'}, outputSchema={'properties': {'result': {'title': 'Result', 'type': 'number'}}, 'required': ['result'], 'title': 'sell_sharesOutput', 'type': 'object'}, icons=None, annotations=None, meta=None, execution=None),\n",
+       " Tool(name='change_strategy', title=None, description='At your discretion, if you choose to, call this to change your investment strategy for the future.\\n\\n    Args:\\n        name: The name of the account holder\\n        strategy: The new strategy for the account\\n    ', inputSchema={'properties': {'name': {'title': 'Name', 'type': 'string'}, 'strategy': {'title': 'Strategy', 'type': 'string'}}, 'required': ['name', 'strategy'], 'title': 'change_strategyArguments', 'type': 'object'}, outputSchema={'properties': {'result': {'title': 'Result', 'type': 'string'}}, 'required': ['result'], 'title': 'change_strategyOutput', 'type': 'object'}, icons=None, annotations=None, meta=None, execution=None)]"
+      ]
+     },
+     "execution_count": 10,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "mcp_tools"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 24,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "instructions = \"You are able to manage an account for a client, and answer questions about the account.\"\n",
+    "request = \"My name is Rohit and my account is under the name rohit. What's my balance and my holdings?\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 25,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/markdown": [
+       "Your cash balance is $9,070.48, and your current holdings consist of 3 shares of Amazon (AMZN)."
+      ],
+      "text/plain": [
+       "<IPython.core.display.Markdown object>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "[non-fatal] Tracing client error 401. Response data is redacted.\n"
+     ]
+    }
+   ],
+   "source": [
+    "\n",
+    "async with MCPServerStdio(params=params, client_session_timeout_seconds=30) as mcp_server:\n",
+    "    agent = Agent(name=\"account_manager\", instructions=instructions, model=gemini_model, mcp_servers=[mcp_server])\n",
+    "    with trace(\"account_manager\"):\n",
+    "        result = await Runner.run(agent, request)\n",
+    "    display(Markdown(result.final_output))\n"
+   ]
+  },
+  
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Let us do semantic search using RAG"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 29,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "c:\\training projects\n"
+     ]
+    },
+    {
+     "ename": "McpError",
+     "evalue": "Connection closed",
+     "output_type": "error",
+     "traceback": [
+      "\u001b[31m---------------------------------------------------------------------------\u001b[39m",
+      "\u001b[31mMcpError\u001b[39m                                  Traceback (most recent call last)",
+      "\u001b[36mCell\u001b[39m\u001b[36m \u001b[39m\u001b[32mIn[29]\u001b[39m\u001b[32m, line 15\u001b[39m\n\u001b[32m     11\u001b[39m     \"env\":{\"QDRANT_LOCAL_PATH\": str(vectordb_path),\n\u001b[32m     12\u001b[39m     \"COLLECTION_NAME\": \"knowledge\"},\n\u001b[32m     13\u001b[39m }\n\u001b[32m     14\u001b[39m \n\u001b[32m---> \u001b[39m\u001b[32m15\u001b[39m \u001b[38;5;28;01masync\u001b[39;00m \u001b[38;5;28;01mwith\u001b[39;00m MCPServerStdio(params=vectorstore_params, client_session_timeout_seconds=\u001b[32m120\u001b[39m) \u001b[38;5;28;01mas\u001b[39;00m server:\n\u001b[32m     16\u001b[39m     vectorstore_tools = \u001b[38;5;28;01mawait\u001b[39;00m server.list_tools()\n\u001b[32m     17\u001b[39m \n\u001b[32m     18\u001b[39m vectorstore_tools\n",
+      "\u001b[36mFile \u001b[39m\u001b[32m~\\AppData\\Roaming\\Python\\Python311\\site-packages\\agents\\mcp\\server.py:1072\u001b[39m, in \u001b[36m_MCPServerWithClientSession.__aenter__\u001b[39m\u001b[34m(self)\u001b[39m\n\u001b[32m   1071\u001b[39m \u001b[38;5;28;01masync\u001b[39;00m \u001b[38;5;28;01mdef\u001b[39;00m\u001b[38;5;250m \u001b[39m\u001b[34m__aenter__\u001b[39m(\u001b[38;5;28mself\u001b[39m):\n\u001b[32m-> \u001b[39m\u001b[32m1072\u001b[39m     \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m.connect()\n\u001b[32m   1073\u001b[39m     \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[38;5;28mself\u001b[39m\n",
+      "\u001b[36mFile \u001b[39m\u001b[32m~\\AppData\\Roaming\\Python\\Python311\\site-packages\\agents\\mcp\\server.py:1402\u001b[39m, in \u001b[36m_MCPServerWithClientSession.connect\u001b[39m\u001b[34m(self)\u001b[39m\n\u001b[32m   1399\u001b[39m     \u001b[38;5;28;01mraise\u001b[39;00m cleanup_failure\n\u001b[32m   1401\u001b[39m \u001b[38;5;28;01mif\u001b[39;00m connection_exception \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;129;01mnot\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m:\n\u001b[32m-> \u001b[39m\u001b[32m1402\u001b[39m     \u001b[38;5;28;01mraise\u001b[39;00m connection_exception\n\u001b[32m   1404\u001b[39m \u001b[38;5;28;01mif\u001b[39;00m connection_error \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;129;01mnot\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m:\n\u001b[32m   1405\u001b[39m     \u001b[38;5;28mself\u001b[39m._raise_mapped_transport_error(connection_error, connection_cause)\n",
+      "\u001b[36mFile \u001b[39m\u001b[32m~\\AppData\\Roaming\\Python\\Python311\\site-packages\\agents\\mcp\\server.py:1336\u001b[39m, in \u001b[36m_MCPServerWithClientSession.connect\u001b[39m\u001b[34m(self)\u001b[39m\n\u001b[32m   1327\u001b[39m     \u001b[38;5;28mself\u001b[39m._get_session_id = rest[\u001b[32m0\u001b[39m] \u001b[38;5;28;01mif\u001b[39;00m rest \u001b[38;5;129;01mand\u001b[39;00m \u001b[38;5;28mcallable\u001b[39m(rest[\u001b[32m0\u001b[39m]) \u001b[38;5;28;01melse\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m\n\u001b[32m   1328\u001b[39m     session = \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m.exit_stack.enter_async_context(\n\u001b[32m   1329\u001b[39m         cast(Any, ClientSession)(\n\u001b[32m   1330\u001b[39m             read,\n\u001b[32m   (...)\u001b[39m\u001b[32m   1334\u001b[39m         )\n\u001b[32m   1335\u001b[39m     )\n\u001b[32m-> \u001b[39m\u001b[32m1336\u001b[39m     \u001b[38;5;28mself\u001b[39m.server_initialize_result = \u001b[38;5;28;01mawait\u001b[39;00m session.initialize()\n\u001b[32m   1337\u001b[39m \u001b[38;5;28mself\u001b[39m.session = session\n\u001b[32m   1338\u001b[39m connection_succeeded = \u001b[38;5;28;01mTrue\u001b[39;00m\n",
+      "\u001b[36mFile \u001b[39m\u001b[32m~\\AppData\\Roaming\\Python\\Python311\\site-packages\\mcp\\client\\session.py:171\u001b[39m, in \u001b[36mClientSession.initialize\u001b[39m\u001b[34m(self)\u001b[39m\n\u001b[32m    154\u001b[39m elicitation = (\n\u001b[32m    155\u001b[39m     types.ElicitationCapability(\n\u001b[32m    156\u001b[39m         form=types.FormElicitationCapability(),\n\u001b[32m   (...)\u001b[39m\u001b[32m    160\u001b[39m     \u001b[38;5;28;01melse\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m\n\u001b[32m    161\u001b[39m )\n\u001b[32m    162\u001b[39m roots = (\n\u001b[32m    163\u001b[39m     \u001b[38;5;66;03m# TODO: Should this be based on whether we\u001b[39;00m\n\u001b[32m    164\u001b[39m     \u001b[38;5;66;03m# _will_ send notifications, or only whether\u001b[39;00m\n\u001b[32m   (...)\u001b[39m\u001b[32m    168\u001b[39m     \u001b[38;5;28;01melse\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m\n\u001b[32m    169\u001b[39m )\n\u001b[32m--> \u001b[39m\u001b[32m171\u001b[39m result = \u001b[38;5;28;01mawait\u001b[39;00m \u001b[38;5;28mself\u001b[39m.send_request(\n\u001b[32m    172\u001b[39m     types.ClientRequest(\n\u001b[32m    173\u001b[39m         types.InitializeRequest(\n\u001b[32m    174\u001b[39m             params=types.InitializeRequestParams(\n\u001b[32m    175\u001b[39m                 protocolVersion=types.LATEST_PROTOCOL_VERSION,\n\u001b[32m    176\u001b[39m                 capabilities=types.ClientCapabilities(\n\u001b[32m    177\u001b[39m                     sampling=sampling,\n\u001b[32m    178\u001b[39m                     elicitation=elicitation,\n\u001b[32m    179\u001b[39m                     experimental=\u001b[38;5;28;01mNone\u001b[39;00m,\n\u001b[32m    180\u001b[39m                     roots=roots,\n\u001b[32m    181\u001b[39m                     tasks=\u001b[38;5;28mself\u001b[39m._task_handlers.build_capability(),\n\u001b[32m    182\u001b[39m                 ),\n\u001b[32m    183\u001b[39m                 clientInfo=\u001b[38;5;28mself\u001b[39m._client_info,\n\u001b[32m    184\u001b[39m             ),\n\u001b[32m    185\u001b[39m         )\n\u001b[32m    186\u001b[39m     ),\n\u001b[32m    187\u001b[39m     types.InitializeResult,\n\u001b[32m    188\u001b[39m )\n\u001b[32m    190\u001b[39m \u001b[38;5;28;01mif\u001b[39;00m result.protocolVersion \u001b[38;5;129;01mnot\u001b[39;00m \u001b[38;5;129;01min\u001b[39;00m SUPPORTED_PROTOCOL_VERSIONS:\n\u001b[32m    191\u001b[39m     \u001b[38;5;28;01mraise\u001b[39;00m \u001b[38;5;167;01mRuntimeError\u001b[39;00m(\u001b[33mf\u001b[39m\u001b[33m\"\u001b[39m\u001b[33mUnsupported protocol version from the server: \u001b[39m\u001b[38;5;132;01m{\u001b[39;00mresult.protocolVersion\u001b[38;5;132;01m}\u001b[39;00m\u001b[33m\"\u001b[39m)\n",
+      "\u001b[36mFile \u001b[39m\u001b[32m~\\AppData\\Roaming\\Python\\Python311\\site-packages\\mcp\\shared\\session.py:306\u001b[39m, in \u001b[36mBaseSession.send_request\u001b[39m\u001b[34m(self, request, result_type, request_read_timeout_seconds, metadata, progress_callback)\u001b[39m\n\u001b[32m    294\u001b[39m     \u001b[38;5;28;01mraise\u001b[39;00m McpError(\n\u001b[32m    295\u001b[39m         ErrorData(\n\u001b[32m    296\u001b[39m             code=httpx.codes.REQUEST_TIMEOUT,\n\u001b[32m   (...)\u001b[39m\u001b[32m    302\u001b[39m         )\n\u001b[32m    303\u001b[39m     )\n\u001b[32m    305\u001b[39m \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;28misinstance\u001b[39m(response_or_error, JSONRPCError):\n\u001b[32m--> \u001b[39m\u001b[32m306\u001b[39m     \u001b[38;5;28;01mraise\u001b[39;00m McpError(response_or_error.error)\n\u001b[32m    307\u001b[39m \u001b[38;5;28;01melse\u001b[39;00m:\n\u001b[32m    308\u001b[39m     \u001b[38;5;28;01mreturn\u001b[39;00m result_type.model_validate(response_or_error.result)\n",
+      "\u001b[31mMcpError\u001b[39m: Connection closed"
+     ]
+    }
+   ],
+   "source": [
+    "import os\n",
+    "os.chdir(r\"c:\\training projects\")\n",
+    "import os\n",
+    "print(os.getcwd())\n",
+    "\n",
+    "from pathlib import Path\n",
+    "vectordb_path = Path(\"memory/qdrant\")\n",
+    "vectorstore_params = {\n",
+    "    \"command\": \"uvx\",\n",
+    "    \"args\": [\"mcp-server-qdrant\"],\n",
+    "    \"env\":{\"QDRANT_LOCAL_PATH\": str(vectordb_path),\n",
+    "    \"COLLECTION_NAME\": \"knowledge\"},\n",
+    "}\n",
+    "\n",
+    "async with MCPServerStdio(params=vectorstore_params, client_session_timeout_seconds=120) as server:\n",
+    "    vectorstore_tools = await server.list_tools()\n",
+    "\n",
+    "vectorstore_tools"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.7"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
